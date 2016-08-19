@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 class Agent(object):
@@ -20,18 +21,34 @@ class Agent(object):
     def move(self, position):
         self.position = position
 
-    def select_action(self, maze):
+    def epsilon_greedy(self, maze):
         # epsilon greedy
         candidates = maze.reachable_places(self.position)
         n = len(candidates)
-        if self.epsilon < random.random():
+        if random.random() < self.epsilon:
             return candidates[np.random.randint(n)]
         else:
             values = np.ones(n) * self.gamma
             for i, place in enumerate(candidates):
                 values[i] *= self.values[tuple(place)]
                 values[i] += maze.get_reward(place)
-            if np.abs(np.min(values) - np.max(values)) < 1e-5:
+            if np.abs(np.min(values) - np.max(values)) < 1e-7:
+                return candidates[np.random.randint(n)]
+            else:
+                index = np.argmax(values)
+                return candidates[index]
+
+    def solve(self, maze, epsilon=0.01):
+        candidates = maze.reachable_places(self.position)
+        n = len(candidates)
+        if random.random() < epsilon:
+            return candidates[np.random.randint(n)]
+        else:
+            values = np.ones(n) * self.gamma
+            for i, place in enumerate(candidates):
+                values[i] *= self.values[tuple(place)]
+                values[i] += maze.get_reward(place)
+            if np.abs(np.min(values) - np.max(values)) < 1e-7:
                 return candidates[np.random.randint(n)]
             else:
                 index = np.argmax(values)
@@ -44,8 +61,10 @@ class Agent(object):
         self.values[tuple(self.position)] += self.alpha * TDerror
 
     def draw_values(self):
-        plt.imshow(self.values, cmap='hot', interpolation='nearest')
-        plt.show()
+        # plt.imshow(self.values, cmap='hot', interpolation='nearest')
+        # plt.show()
+        sns.heatmap(self.values, annot=True, cmap="YlGnBu", fmt='.1f')
+        sns.plt.show()
 
 
 class Maze(object):
@@ -58,7 +77,7 @@ class Maze(object):
 
     def get_reward(self, position):
         if tuple(position) == tuple(self.goal):
-            return 1.
+            return 100.
         else:
             return 0.
 
@@ -100,21 +119,39 @@ def main():
                           [1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1],
                           [1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1],
                           [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]])
+    # structure = np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1],
+    #                       [1, 0, 0, 1, 0, 0, 0, 0, 1],
+    #                       [1, 0, 0, 1, 0, 0, 1, 0, 1],
+    #                       [1, 0, 0, 1, 0, 0, 1, 0, 1],
+    #                       [1, 0, 0, 1, 0, 1, 1, 0, 1],
+    #                       [1, 0, 0, 0, 0, 0, 1, 0, 1],
+    #                       [1, 1, 1, 1, 1, 1, 1, 0, 1],
+    #                       [1, 0, 0, 0, 0, 0, 0, 0, 1],
+    #                       [1, 1, 1, 1, 1, 1, 1, 1, 1]])
 
     maze = Maze(structure, start=(1, 1), goal=(10, 10))
     # maze.draw()
 
-    agent = Agent(epsilon=0.01, gamma=0.95, alpha=0.25)
+    agent = Agent(epsilon=0.1, gamma=0.95, alpha=0.1)
     agent.initialize(maze)
 
     steps = []
 
-    for _ in xrange(100000):
+    for _ in xrange(1000):
         i = 0
         while True:
-            next_position = agent.select_action(maze)
+            next_position = agent.epsilon_greedy(maze)
             reward = maze.get_reward(next_position)
             agent.update_value(reward, next_position)
+            agent.move(next_position)
+            i += 1
+            if tuple(agent.position) == tuple(maze.goal):
+                break
+        agent.restart(maze)
+
+        i = 0
+        while True:
+            next_position = agent.solve(maze, 0.)
             agent.move(next_position)
             i += 1
             if tuple(agent.position) == tuple(maze.goal):
@@ -124,6 +161,9 @@ def main():
         steps.append(i)
 
     agent.draw_values()
+    # print agent.values
+    print np.round(agent.values, 1)
+    # print np.round(agent.values, 2)
     plt.plot(np.arange(len(steps)), np.array(steps))
     plt.show()
 
